@@ -1,0 +1,6 @@
+---
+- name: Test Localhost
+  hosts: localhost
+  connection: local
+  roles:
+    - go

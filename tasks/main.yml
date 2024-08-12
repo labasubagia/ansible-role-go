@@ -1,0 +1,93 @@
+---
+- name: Assert input
+  ansible.builtin.assert:
+    that:
+      - go_state in ['present', 'absent']
+      - ansible_architecture in go_supported_architecture
+
+- name: Present
+  when: go_state == "present"
+  block:
+    - name: Set url
+      ansible.builtin.set_fact:
+        url: https://go.dev/dl/go{{ go_version }}.linux-{{ go_supported_architecture[ansible_architecture] }}.tar.gz
+
+    - name: Download
+      ansible.builtin.get_url:
+        url: "{{ url }}"
+        dest: "/tmp/{{ url | basename }}"
+        mode: "0644"
+
+    - name: Extract
+      become: true
+      ansible.builtin.unarchive:
+        src: "/tmp/{{ url | basename }}"
+        dest: "{{ go_extract_dir }}"
+        creates: "{{ go_bin_dir }}/go"
+        remote_src: true
+
+    - name: Ensure /etc/profile.d
+      become: true
+      ansible.builtin.file:
+        path: /etc/profile.d
+        state: directory
+        owner: root
+        group: root
+        mode: u=rwx,go=rx
+
+    - name: Add to PATH
+      become: true
+      ansible.builtin.copy:
+        content: export PATH="$PATH:{{ go_bin_dir }}"
+        dest: /etc/profile.d/go.sh
+        owner: root
+        group: root
+        mode: u=rw,go=r
+
+    - name: List go packages dir
+      ansible.builtin.find:
+        paths:
+          - "{{ go_package_dir }}/bin"
+      register: found
+
+    - name: Set package facts
+      ansible.builtin.set_fact:
+        packages:
+          removed: "{{ found.files | map(attribute='path') | map('basename') | difference(go_packages | map('basename')) }}"
+
+    - name: Install packages
+      ansible.builtin.command: "{{ go_executable }} install {{ item }}@latest"
+      args:
+        creates: "{{ go_package_dir }}/bin/{{ item | basename }}"
+      with_items: "{{ go_packages }}"
+
+    - name: Remove unecessary packages
+      ansible.builtin.file:
+        path: "{{ go_package_dir }}/bin/{{ item }}"
+        state: absent
+      with_items: "{{ packages.removed }}"
+
+- name: Absent
+  when: go_state == "absent"
+  block:
+    - name: Clean
+      ansible.builtin.command: "{{ go_executable }} clean -modcache"
+      register: go_clean
+      changed_when: go_clean.stdout != ''
+
+    - name: Remove pagkages dir
+      ansible.builtin.file:
+        path: "{{ go_package_dir }}"
+        state: absent
+
+    - name: Remove from PATH
+      become: true
+      ansible.builtin.file:
+        path: /etc/profile.d/go.sh
+        state: absent
+
+    - name: Remove installation dir
+      become: true
+      ansible.builtin.file:
+        path: "{{ go_install_dir }}"
+        state: absent

@@ -1,0 +1,13 @@
+---
+go_supported_architecture:
+  armv6l: armv6l
+  armv7l: armv6l
+  aarch64: arm64
+  x86_64: amd64
+  i386: "386"
+
+go_extract_dir: "/usr/local"
+go_install_dir: "{{ go_extract_dir }}/go"
+go_bin_dir: "{{ go_install_dir }}/bin"
+go_executable: "{{ go_bin_dir }}/go"
+go_package_dir: ~/go
