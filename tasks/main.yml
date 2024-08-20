@@ -38,7 +38,9 @@
     - name: Add to PATH
       become: true
       ansible.builtin.copy:
-        content: export PATH="$PATH:{{ go_bin_dir }}"
+        content: |
+          export PATH="$PATH:{{ go_bin_dir }}"
+          export PATH="$PATH:$HOME/go/bin"
         dest: /etc/profile.d/go.sh
         owner: root
         group: root
